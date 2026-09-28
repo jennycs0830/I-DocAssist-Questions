@@ -90,10 +90,20 @@
   .doc-body table { border-collapse: collapse; margin: 0.6em 0; font-size: 0.82rem; display: block; overflow-x: auto; }
   .doc-body th, .doc-body td { border: 1px solid var(--border); padding: 4px 8px; text-align: left; }
   .doc-body th { background: var(--chip-bg); font-family: var(--font-display); font-weight: 600; }
-  .doc-body mark {
-    background: var(--mark-bg); color: var(--mark-fg); border-radius: 3px; padding: 0 2px; scroll-margin: 40px;
+  .doc-body .hl-block {
+    background: color-mix(in srgb, var(--mark-bg) 35%, transparent);
+    border-left: 3px solid var(--mark-bg);
+    border-radius: 4px;
+    padding: 4px 10px;
+    margin: 4px 0;
+    scroll-margin: 40px;
   }
-  .doc-body mark.hop-2, .doc-body mark.hop-3, .doc-body mark.hop-4, .doc-body mark.hop-5 { outline: 2px solid var(--accent-2); outline-offset: 1px; }
+  .doc-body .hl-block.hop-2, .doc-body .hl-block.hop-3, .doc-body .hl-block.hop-4, .doc-body .hl-block.hop-5 {
+    border-left-color: var(--accent-2);
+    background: color-mix(in srgb, var(--accent-2) 18%, transparent);
+  }
+  .doc-body .hl-block > *:first-child { margin-top: 0; }
+  .doc-body .hl-block > *:last-child { margin-bottom: 0; }
 
   .right-panel { flex: 1 1 54%; min-width: 0; display: flex; gap: 12px; }
   @media (max-width: 900px) { .right-panel { flex-direction: column; } }
@@ -396,21 +406,26 @@
     var text = doc.text;
     var ranges = (highlightRanges || []).filter(function (r) { return r.start != null && r.end != null; })
       .sort(function (a, b) { return a.start - b.start; });
-    // Splice raw <mark> tags directly into the markdown source (not escaped text),
-    // then let marked.js render the whole thing -- this renders real formatting
-    // (headings, bold, tables) instead of showing raw markdown syntax.
-    var spliced = '';
+    // Render each segment (before / highlighted / after) as its own independent
+    // markdown parse, wrapping highlighted segments in a block-level <div> rather
+    // than an inline <mark>. This matters: a highlighted chunk routinely spans a
+    // table, headings, and lists, and <mark> is NOT one of the HTML formatting
+    // elements browsers auto-reconstruct across a block boundary -- an inline
+    // <mark> wrapped around block content gets silently truncated by the browser's
+    // parser at the first block-level tag it hits, dropping the vast majority of
+    // the intended highlight. A <div> has no such restriction.
+    var html = '';
     var cursor = 0;
-    ranges.forEach(function (r, i) {
-      if (r.start < cursor) return;
-      spliced += text.slice(cursor, r.start);
-      var cls = ranges.length > 1 ? ' class="hop-' + (i + 1) + '"' : '';
-      spliced += '<mark id="hl-' + i + '"' + cls + '>' + text.slice(r.start, r.end) + '</mark>';
-      cursor = r.end;
-    });
-    spliced += text.slice(cursor);
     try {
-      body.innerHTML = marked.parse(spliced);
+      ranges.forEach(function (r, i) {
+        if (r.start < cursor) return;
+        html += marked.parse(text.slice(cursor, r.start));
+        var cls = ranges.length > 1 ? ' hop-' + (i + 1) : '';
+        html += '<div class="hl-block' + cls + '" id="hl-' + i + '">' + marked.parse(text.slice(r.start, r.end)) + '</div>';
+        cursor = r.end;
+      });
+      html += marked.parse(text.slice(cursor));
+      body.innerHTML = html;
     } catch (e) {
       body.textContent = text;
     }
