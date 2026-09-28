@@ -308,7 +308,7 @@
     }
     if (ranges.length) {
       var first = document.getElementById('hl-0');
-      if (first) first.scrollIntoView({ block: 'center' });
+      if (first && typeof first.scrollIntoView === 'function') first.scrollIntoView({ block: 'center' });
       document.getElementById('doc-hint').textContent = ranges.length > 1
         ? ranges.length + ' source passages for this question, in reading order'
         : 'Source passage for the selected question';
@@ -362,7 +362,11 @@
     var el = document.getElementById('f-corpus');
     el.innerHTML = opts.map(function (o) { return '<button data-v="' + o[0] + '" class="' + (state.corpus === o[0] ? 'active' : '') + '">' + o[1] + '</button>'; }).join('');
     el.querySelectorAll('button').forEach(function (btn) {
-      btn.addEventListener('click', function () { state.corpus = btn.getAttribute('data-v'); state.shown = 50; saveState(); render(); });
+      btn.addEventListener('click', function () {
+        state.corpus = btn.getAttribute('data-v'); state.shown = 50; saveState();
+        el.querySelectorAll('button').forEach(function (b) { b.classList.toggle('active', b === btn); });
+        render();
+      });
     });
   }
   function buildHopFilter() {
@@ -370,7 +374,11 @@
     var el = document.getElementById('f-hop');
     el.innerHTML = opts.map(function (o) { return '<button data-v="' + o[0] + '" class="' + (state.hop === o[0] ? 'active' : '') + '">' + o[1] + '</button>'; }).join('');
     el.querySelectorAll('button').forEach(function (btn) {
-      btn.addEventListener('click', function () { state.hop = btn.getAttribute('data-v'); state.shown = 50; saveState(); render(); });
+      btn.addEventListener('click', function () {
+        state.hop = btn.getAttribute('data-v'); state.shown = 50; saveState();
+        el.querySelectorAll('button').forEach(function (b) { b.classList.toggle('active', b === btn); });
+        render();
+      });
     });
   }
   function buildDirectionFilter() {
@@ -434,7 +442,11 @@
 
   function render() {
     var results = filtered();
-    syncDocPanelToResults(results);
+    try {
+      syncDocPanelToResults(results);
+    } catch (e) {
+      console.error('Left panel (document/highlight) failed to update; right panel will still render.', e);
+    }
     document.getElementById('result-count').textContent = results.length + ' question' + (results.length === 1 ? '' : 's');
     var toShow = results.slice(0, state.shown);
     var cardsEl = document.getElementById('cards');
