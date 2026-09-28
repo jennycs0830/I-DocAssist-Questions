@@ -19,6 +19,7 @@
     --chip-bg: #ece8dc;
     --mark-bg: #f6d978;
     --mark-fg: #1c2430;
+    --danger: #a13d3d;
     --font-display: 'IBM Plex Sans', -apple-system, sans-serif;
     --font-body: 'IBM Plex Sans', -apple-system, sans-serif;
     --font-mono: 'IBM Plex Mono', 'SFMono-Regular', monospace;
@@ -27,14 +28,14 @@
     :root:not([data-theme="light"]) {
       --bg: #14181f; --surface: #1c222c; --ink: #e9ecf1; --muted: #93a0b4;
       --accent: #6fbfab; --accent-soft: #1f2e2a; --accent-2: #d99a56; --accent-2-soft: #2e2419;
-      --border: #333c4a; --chip-bg: #262e3a; --mark-bg: #a67c1e; --mark-fg: #14181f;
+      --border: #333c4a; --chip-bg: #262e3a; --mark-bg: #a67c1e; --mark-fg: #14181f; --danger: #d97a7a;
       color-scheme: dark;
     }
   }
   :root[data-theme="dark"] {
     --bg: #14181f; --surface: #1c222c; --ink: #e9ecf1; --muted: #93a0b4;
     --accent: #6fbfab; --accent-soft: #1f2e2a; --accent-2: #d99a56; --accent-2-soft: #2e2419;
-    --border: #333c4a; --chip-bg: #262e3a; --mark-bg: #a67c1e; --mark-fg: #14181f;
+    --border: #333c4a; --chip-bg: #262e3a; --mark-bg: #a67c1e; --mark-fg: #14181f; --danger: #d97a7a;
     color-scheme: dark;
   }
 
@@ -47,9 +48,15 @@
   h1, h2, h3 { font-family: var(--font-display); text-wrap: balance; margin: 0; }
   .app { max-width: 1440px; width: 100%; margin: 0 auto; display: flex; flex-direction: column; gap: 10px; flex: 1; min-height: 0; }
 
-  header.top { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 8px; }
+  header.top { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; }
   header.top h1 { font-size: 1.35rem; font-weight: 700; letter-spacing: -0.01em; }
   header.top .subtitle { color: var(--muted); font-size: 0.8rem; }
+  .header-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .export-btn {
+    font-family: var(--font-body); font-size: 0.78rem; padding: 6px 12px; border-radius: 999px;
+    border: 1px solid var(--border); background: var(--surface); color: var(--ink); cursor: pointer;
+  }
+  .export-btn:hover { border-color: var(--accent); color: var(--accent); }
 
   .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(100px, 1fr)); gap: 8px; }
   .stat { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 8px 10px; min-width: 0; }
@@ -142,6 +149,30 @@
   .a { font-family: var(--font-mono); font-size: 0.84rem; background: var(--accent-soft); color: var(--ink); padding: 3px 7px; border-radius: 6px; }
   .meta-row { display: flex; justify-content: space-between; gap: 8px; font-size: 0.7rem; color: var(--muted); flex-wrap: wrap; }
 
+  .badge.diff-easy { color: var(--accent); }
+  .badge.diff-medium { color: var(--accent-2); }
+  .badge.diff-hard { background: var(--ink); color: var(--bg); }
+
+  .review-row { display: flex; align-items: center; gap: 6px; padding-top: 4px; border-top: 1px dashed var(--border); margin-top: 2px; }
+  .verdict-btn {
+    font-family: var(--font-body); font-size: 0.76rem; padding: 3px 10px; border-radius: 999px;
+    border: 1px solid var(--border); background: var(--bg); color: var(--muted); cursor: pointer;
+  }
+  .verdict-btn.good.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .verdict-btn.bad.active { background: var(--danger); border-color: var(--danger); color: #fff; }
+  .note-toggle {
+    font-family: var(--font-body); font-size: 0.74rem; color: var(--muted); background: none; border: none;
+    cursor: pointer; text-decoration: underline; margin-left: auto;
+  }
+  .note-toggle.has-note { color: var(--accent-2); font-weight: 600; }
+  .review-note {
+    width: 100%; font-family: var(--font-body); font-size: 0.8rem; border: 1px solid var(--border);
+    border-radius: 8px; padding: 6px 8px; background: var(--bg); color: var(--ink); resize: vertical;
+    min-height: 44px; margin-top: 4px;
+  }
+  .card.has-review { border-left: 3px solid var(--accent); }
+  .card.has-review.marked-bad { border-left-color: var(--danger); }
+
   .empty { text-align: center; color: var(--muted); padding: 30px 15px; font-size: 0.85rem; }
   .load-more { display: flex; justify-content: center; padding: 4px 0; }
   .load-more button { font-family: var(--font-body); font-size: 0.82rem; padding: 7px 16px; border-radius: 999px; border: 1px solid var(--border); background: var(--surface); color: var(--ink); cursor: pointer; }
@@ -160,6 +191,10 @@
     <div>
       <h1>Policy QA Explorer</h1>
       <div class="subtitle">Click any question to see its exact source passage highlighted on the left</div>
+    </div>
+    <div class="header-actions">
+      <div class="seg" id="f-scope"></div>
+      <button class="export-btn" id="export-reviews">Export my reviews</button>
     </div>
   </header>
 
@@ -189,8 +224,16 @@
           <select id="f-direction"></select>
         </div>
         <div class="filter-group">
+          <div class="fl">Difficulty</div>
+          <div class="seg" id="f-difficulty"></div>
+        </div>
+        <div class="filter-group">
           <div class="fl">Requirement type</div>
           <div class="req-list" id="f-requirement"></div>
+        </div>
+        <div class="filter-group">
+          <div class="fl">Your review</div>
+          <div class="seg" id="f-reviewed"></div>
         </div>
         <div class="filter-group">
           <div class="fl">Search</div>
@@ -218,7 +261,7 @@
 <script>
 (function () {
   var state = {
-    corpus: 'all', hop: 'all', direction: 'all',
+    scope: 'round1', corpus: 'all', hop: 'all', direction: 'all', difficulty: 'all', reviewed: 'all',
     requirementTypes: new Set(), search: '', shown: 50,
     selectedQuestionId: null, selectedDocId: null,
   };
@@ -226,6 +269,25 @@
   var QUESTIONS = [];
   var DOCUMENTS = {};
   var reqCounts = {};
+  var REVIEWS = {}; // questionId (string) -> { verdict: 'good'|'bad'|null, comment: string }
+
+  function loadReviews() {
+    try {
+      REVIEWS = JSON.parse(localStorage.getItem('pa-qa-explorer-reviews') || '{}');
+    } catch (e) { REVIEWS = {}; }
+  }
+  function saveReviews() {
+    try { localStorage.setItem('pa-qa-explorer-reviews', JSON.stringify(REVIEWS)); } catch (e) {}
+  }
+  function getReview(id) { return REVIEWS[id] || { verdict: null, comment: '' }; }
+  function setReview(id, patch) {
+    var cur = getReview(id);
+    var next = { verdict: cur.verdict, comment: cur.comment };
+    if ('verdict' in patch) next.verdict = patch.verdict;
+    if ('comment' in patch) next.comment = patch.comment;
+    if (!next.verdict && !next.comment) { delete REVIEWS[id]; } else { REVIEWS[id] = next; }
+    saveReviews();
+  }
 
   function escapeHtml(s) {
     return String(s).replace(/[&<>"']/g, function (c) {
@@ -237,32 +299,78 @@
   function loadState() {
     try {
       var saved = JSON.parse(localStorage.getItem('pa-qa-explorer-filters') || '{}');
+      if (saved.scope) state.scope = saved.scope;
       if (saved.corpus) state.corpus = saved.corpus;
       if (saved.hop) state.hop = saved.hop;
       if (saved.direction) state.direction = saved.direction;
+      if (saved.difficulty) state.difficulty = saved.difficulty;
+      if (saved.reviewed) state.reviewed = saved.reviewed;
       if (Array.isArray(saved.requirementTypes)) state.requirementTypes = new Set(saved.requirementTypes);
     } catch (e) {}
   }
   function saveState() {
     try {
       localStorage.setItem('pa-qa-explorer-filters', JSON.stringify({
-        corpus: state.corpus, hop: state.hop, direction: state.direction,
+        scope: state.scope, corpus: state.corpus, hop: state.hop, direction: state.direction,
+        difficulty: state.difficulty, reviewed: state.reviewed,
         requirementTypes: Array.from(state.requirementTypes),
       }));
     } catch (e) {}
   }
 
   function buildStats() {
-    var total = QUESTIONS.length;
-    var chibench = QUESTIONS.filter(function (d) { return d.corpus === 'chibench'; }).length;
-    var ours = QUESTIONS.filter(function (d) { return d.corpus === 'ours'; }).length;
-    var single = QUESTIONS.filter(function (d) { return d.hop === 'single'; }).length;
-    var multi = QUESTIONS.filter(function (d) { return d.hop === 'multi'; }).length;
-    var withCode = QUESTIONS.filter(function (d) { return d.cpt_code; }).length;
-    var stats = [[total, 'Total'], [chibench, 'Chi-Bench'], [ours, 'Our corpus'], [single, 'Single-hop'], [multi, 'Multi-hop'], [withCode, 'Code-anchored']];
+    var pool = state.scope === 'round1' ? QUESTIONS.filter(function (d) { return d.round1; }) : QUESTIONS;
+    var total = pool.length;
+    var chibench = pool.filter(function (d) { return d.corpus === 'chibench'; }).length;
+    var ours = pool.filter(function (d) { return d.corpus === 'ours'; }).length;
+    var single = pool.filter(function (d) { return d.hop === 'single'; }).length;
+    var multi = pool.filter(function (d) { return d.hop === 'multi'; }).length;
+    var reviewedCount = pool.filter(function (d) { return getReview(d.id).verdict; }).length;
+    var stats = [[total, 'Shown scope'], [chibench, 'Chi-Bench'], [ours, 'Our corpus'], [single, 'Single-hop'], [multi, 'Multi-hop'], [reviewedCount, 'Reviewed']];
     document.getElementById('stats').innerHTML = stats.map(function (s) {
       return '<div class="stat"><div class="n">' + s[0] + '</div><div class="l">' + s[1] + '</div></div>';
     }).join('');
+  }
+
+  function buildScopeFilter() {
+    var opts = [['round1', 'Round 1 review set (' + QUESTIONS.filter(function (d) { return d.round1; }).length + ')'], ['all', 'All questions (' + QUESTIONS.length + ')']];
+    var el = document.getElementById('f-scope');
+    el.innerHTML = opts.map(function (o) { return '<button data-v="' + o[0] + '" class="' + (state.scope === o[0] ? 'active' : '') + '">' + o[1] + '</button>'; }).join('');
+    el.querySelectorAll('button').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        state.scope = btn.getAttribute('data-v'); state.shown = 50; saveState();
+        el.querySelectorAll('button').forEach(function (b) { b.classList.toggle('active', b === btn); });
+        buildStats();
+        buildRequirementFilter();
+        render();
+      });
+    });
+  }
+
+  function buildDifficultyFilter() {
+    var opts = [['all', 'All'], ['easy', 'Easy'], ['medium', 'Medium'], ['hard', 'Hard']];
+    var el = document.getElementById('f-difficulty');
+    el.innerHTML = opts.map(function (o) { return '<button data-v="' + o[0] + '" class="' + (state.difficulty === o[0] ? 'active' : '') + '">' + o[1] + '</button>'; }).join('');
+    el.querySelectorAll('button').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        state.difficulty = btn.getAttribute('data-v'); state.shown = 50; saveState();
+        el.querySelectorAll('button').forEach(function (b) { b.classList.toggle('active', b === btn); });
+        render();
+      });
+    });
+  }
+
+  function buildReviewedFilter() {
+    var opts = [['all', 'All'], ['unreviewed', 'Not yet'], ['good', 'Good'], ['bad', 'Bad']];
+    var el = document.getElementById('f-reviewed');
+    el.innerHTML = opts.map(function (o) { return '<button data-v="' + o[0] + '" class="' + (state.reviewed === o[0] ? 'active' : '') + '">' + o[1] + '</button>'; }).join('');
+    el.querySelectorAll('button').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        state.reviewed = btn.getAttribute('data-v'); state.shown = 50; saveState();
+        el.querySelectorAll('button').forEach(function (b) { b.classList.toggle('active', b === btn); });
+        render();
+      });
+    });
   }
 
   function buildDocSelect() {
@@ -392,7 +500,8 @@
   }
   function buildRequirementFilter() {
     reqCounts = {};
-    QUESTIONS.forEach(function (d) { var k = d.requirement_type || 'other'; reqCounts[k] = (reqCounts[k] || 0) + 1; });
+    var pool = state.scope === 'round1' ? QUESTIONS.filter(function (d) { return d.round1; }) : QUESTIONS;
+    pool.forEach(function (d) { var k = d.requirement_type || 'other'; reqCounts[k] = (reqCounts[k] || 0) + 1; });
     var keys = Object.keys(reqCounts).sort(function (a, b) { return reqCounts[b] - reqCounts[a]; });
     var el = document.getElementById('f-requirement');
     el.innerHTML = keys.map(function (k) {
@@ -411,11 +520,18 @@
 
   function filtered() {
     var q = state.search.trim().toLowerCase();
-    return QUESTIONS.filter(function (d) {
+    var pool = state.scope === 'round1' ? QUESTIONS.filter(function (d) { return d.round1; }) : QUESTIONS;
+    return pool.filter(function (d) {
       if (state.corpus !== 'all' && d.corpus !== state.corpus) return false;
       if (state.hop !== 'all' && d.hop !== state.hop) return false;
       if (state.direction !== 'all' && (d.direction || 'other') !== state.direction) return false;
+      if (state.difficulty !== 'all' && (d.difficulty || 'unknown') !== state.difficulty) return false;
       if (state.requirementTypes.size > 0 && !state.requirementTypes.has(d.requirement_type || 'other')) return false;
+      if (state.reviewed !== 'all') {
+        var v = getReview(d.id).verdict;
+        if (state.reviewed === 'unreviewed' && v) return false;
+        if ((state.reviewed === 'good' || state.reviewed === 'bad') && v !== state.reviewed) return false;
+      }
       if (q) {
         var hay = (d.question + ' ' + d.answer + ' ' + (d.cpt_code || '')).toLowerCase();
         if (hay.indexOf(q) === -1) return false;
@@ -426,17 +542,27 @@
 
   function cardHtml(d) {
     var doc = DOCUMENTS[d.document_id];
+    var review = getReview(d.id);
     var badges = '<span class="badge corpus-' + d.corpus + '">' + corpusLabel(d.corpus) + '</span>';
     badges += '<span class="badge' + (d.hop === 'multi' ? ' hop-multi' : '') + '">' + d.hop + '-hop' + (d.hop === 'multi' ? ' (' + d.chunk_ids.length + ')' : '') + '</span>';
+    if (d.difficulty) badges += '<span class="badge diff-' + d.difficulty + '">' + d.difficulty + '</span>';
     badges += '<span class="badge">' + (d.requirement_type || 'other').replace(/_/g, ' ') + '</span>';
     if (d.direction && d.direction !== 'other') badges += '<span class="badge">' + d.direction.replace(/_/g, ' ') + '</span>';
     if (d.cpt_code) badges += '<span class="badge code">' + escapeHtml(d.cpt_code) + '</span>';
     var sel = d.id === state.selectedQuestionId ? ' selected' : '';
-    return '<div class="card' + sel + '" data-id="' + d.id + '">' +
+    var reviewCls = review.verdict ? ' has-review' + (review.verdict === 'bad' ? ' marked-bad' : '') : '';
+    var noteHidden = review.comment ? '' : ' hidden';
+    return '<div class="card' + sel + reviewCls + '" data-id="' + d.id + '">' +
       '<div class="badges">' + badges + '</div>' +
       '<div class="q">' + escapeHtml(d.question) + '</div>' +
       '<div class="a-row"><span class="a-label">Answer</span><span class="a">' + escapeHtml(d.answer) + '</span></div>' +
       '<div class="meta-row"><span>' + escapeHtml(doc ? doc.filename : '') + '</span><span>#' + d.id + '</span></div>' +
+      '<div class="review-row">' +
+        '<button class="verdict-btn good' + (review.verdict === 'good' ? ' active' : '') + '" data-verdict="good">Good</button>' +
+        '<button class="verdict-btn bad' + (review.verdict === 'bad' ? ' active' : '') + '" data-verdict="bad">Bad</button>' +
+        '<button class="note-toggle' + (review.comment ? ' has-note' : '') + '" data-action="toggle-note">' + (review.comment ? 'Edit note' : '+ Leave a note') + '</button>' +
+      '</div>' +
+      '<textarea class="review-note" placeholder="Why is this good/bad? Optional note for the team…"' + noteHidden + '>' + escapeHtml(review.comment) + '</textarea>' +
       '</div>';
   }
 
@@ -452,11 +578,43 @@
     var cardsEl = document.getElementById('cards');
     cardsEl.innerHTML = toShow.map(cardHtml).join('');
     cardsEl.querySelectorAll('.card').forEach(function (card) {
-      card.addEventListener('click', function () {
-        var id = parseInt(card.getAttribute('data-id'), 10);
+      var id = parseInt(card.getAttribute('data-id'), 10);
+      card.addEventListener('click', function (e) {
+        if (e.target.closest('.review-row') || e.target.closest('.review-note')) return;
         var q = QUESTIONS.find(function (x) { return x.id === id; });
         if (q) selectQuestion(q);
       });
+      card.querySelectorAll('.verdict-btn').forEach(function (btn) {
+        btn.addEventListener('click', function (e) {
+          e.stopPropagation();
+          var v = btn.getAttribute('data-verdict');
+          var cur = getReview(id);
+          setReview(id, { verdict: cur.verdict === v ? null : v });
+          buildStats();
+          render();
+        });
+      });
+      var noteToggle = card.querySelector('.note-toggle');
+      var noteBox = card.querySelector('.review-note');
+      if (noteToggle) {
+        noteToggle.addEventListener('click', function (e) {
+          e.stopPropagation();
+          noteBox.hidden = !noteBox.hidden;
+          if (!noteBox.hidden) noteBox.focus();
+        });
+      }
+      if (noteBox) {
+        noteBox.addEventListener('click', function (e) { e.stopPropagation(); });
+        noteBox.addEventListener('input', function () {
+          setReview(id, { comment: noteBox.value });
+        });
+        noteBox.addEventListener('blur', function () {
+          buildStats();
+          var toggle = card.querySelector('.note-toggle');
+          if (toggle) toggle.textContent = noteBox.value ? 'Edit note' : '+ Leave a note';
+          if (toggle) toggle.classList.toggle('has-note', !!noteBox.value);
+        });
+      }
     });
     document.getElementById('empty-state').hidden = results.length !== 0;
     document.getElementById('load-more-wrap').hidden = results.length <= state.shown;
@@ -466,11 +624,33 @@
     document.getElementById('f-search').addEventListener('input', function (e) { state.search = e.target.value; state.shown = 50; render(); });
     document.getElementById('load-more').addEventListener('click', function () { state.shown += 50; render(); });
     document.getElementById('reset').addEventListener('click', function () {
-      state.corpus = 'all'; state.hop = 'all'; state.direction = 'all'; state.requirementTypes = new Set(); state.search = ''; state.shown = 50;
+      state.corpus = 'all'; state.hop = 'all'; state.direction = 'all'; state.difficulty = 'all'; state.reviewed = 'all';
+      state.requirementTypes = new Set(); state.search = ''; state.shown = 50;
       document.getElementById('f-search').value = '';
       saveState();
-      buildCorpusFilter(); buildHopFilter(); buildDirectionFilter(); buildRequirementFilter();
+      buildCorpusFilter(); buildHopFilter(); buildDirectionFilter(); buildDifficultyFilter(); buildReviewedFilter(); buildRequirementFilter();
       render();
+    });
+    document.getElementById('export-reviews').addEventListener('click', function () {
+      var rows = QUESTIONS.filter(function (d) { return getReview(d.id).verdict || getReview(d.id).comment; })
+        .map(function (d) {
+          var r = getReview(d.id);
+          return {
+            id: d.id, corpus: d.corpus, hop: d.hop, requirement_type: d.requirement_type,
+            difficulty: d.difficulty, question: d.question, answer: d.answer,
+            verdict: r.verdict, comment: r.comment,
+          };
+        });
+      if (rows.length === 0) { alert('No reviews recorded yet -- mark at least one question Good/Bad or leave a note first.'); return; }
+      var blob = new Blob([JSON.stringify(rows, null, 2)], { type: 'application/json' });
+      var url = URL.createObjectURL(blob);
+      var a = document.createElement('a');
+      a.href = url;
+      a.download = 'pa-qa-reviews-' + new Date().toISOString().slice(0, 10) + '.json';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
     });
   }
 
@@ -481,12 +661,16 @@
     QUESTIONS = results[0];
     DOCUMENTS = results[1];
     loadState();
+    loadReviews();
     buildStats();
     buildDocSelect();
     renderDoc([]);
+    buildScopeFilter();
     buildCorpusFilter();
     buildHopFilter();
     buildDirectionFilter();
+    buildDifficultyFilter();
+    buildReviewedFilter();
     buildRequirementFilter();
     wireStatic();
     render();
