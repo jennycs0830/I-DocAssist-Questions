@@ -1,0 +1,444 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Policy QA Explorer</title>
+<style>
+  /* layout: left = source document reader with highlighted evidence span, right = filterable question ledger */
+  :root {
+    --bg: #f2efe7;
+    --surface: #ffffff;
+    --ink: #1c2430;
+    --muted: #667085;
+    --accent: #2f6f62;
+    --accent-soft: #e3ede9;
+    --accent-2: #a8631f;
+    --accent-2-soft: #f3e6d6;
+    --border: #dcd6c8;
+    --chip-bg: #ece8dc;
+    --mark-bg: #f6d978;
+    --mark-fg: #1c2430;
+    --font-display: 'IBM Plex Sans', -apple-system, sans-serif;
+    --font-body: 'IBM Plex Sans', -apple-system, sans-serif;
+    --font-mono: 'IBM Plex Mono', 'SFMono-Regular', monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #14181f; --surface: #1c222c; --ink: #e9ecf1; --muted: #93a0b4;
+      --accent: #6fbfab; --accent-soft: #1f2e2a; --accent-2: #d99a56; --accent-2-soft: #2e2419;
+      --border: #333c4a; --chip-bg: #262e3a; --mark-bg: #a67c1e; --mark-fg: #14181f;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #14181f; --surface: #1c222c; --ink: #e9ecf1; --muted: #93a0b4;
+    --accent: #6fbfab; --accent-soft: #1f2e2a; --accent-2: #d99a56; --accent-2-soft: #2e2419;
+    --border: #333c4a; --chip-bg: #262e3a; --mark-bg: #a67c1e; --mark-fg: #14181f;
+    color-scheme: dark;
+  }
+
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    background: var(--bg); color: var(--ink); font-family: var(--font-body);
+    margin: 0; padding-inline: 16px; padding-block: 12px; display: flex; flex-direction: column;
+  }
+  h1, h2, h3 { font-family: var(--font-display); text-wrap: balance; margin: 0; }
+  .app { max-width: 1440px; width: 100%; margin: 0 auto; display: flex; flex-direction: column; gap: 10px; flex: 1; min-height: 0; }
+
+  header.top { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 8px; }
+  header.top h1 { font-size: 1.35rem; font-weight: 700; letter-spacing: -0.01em; }
+  header.top .subtitle { color: var(--muted); font-size: 0.8rem; }
+
+  .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(100px, 1fr)); gap: 8px; }
+  .stat { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 8px 10px; min-width: 0; }
+  .stat .n { font-family: var(--font-mono); font-size: 1.2rem; font-weight: 600; font-variant-numeric: tabular-nums; }
+  .stat .l { font-size: 0.68rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; margin-top: 2px; }
+
+  .split { display: flex; gap: 12px; flex: 1; min-height: 480px; }
+  @media (max-width: 900px) { .split { flex-direction: column; min-height: 0; } }
+
+  .doc-panel {
+    flex: 1 1 46%; min-width: 0; display: flex; flex-direction: column; gap: 8px;
+    background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 12px;
+    min-height: 320px;
+  }
+  .doc-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+  .doc-head select { font-family: var(--font-body); font-size: 0.82rem; padding: 6px 8px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg); color: var(--ink); max-width: 100%; }
+  .doc-hint { font-size: 0.72rem; color: var(--muted); }
+  .doc-body {
+    flex: 1; overflow-y: auto; min-height: 0;
+    font-family: var(--font-mono); font-size: 0.78rem; line-height: 1.65; white-space: pre-wrap; word-break: break-word;
+    background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 12px;
+  }
+  .doc-body mark {
+    background: var(--mark-bg); color: var(--mark-fg); border-radius: 3px; padding: 0 2px; scroll-margin: 40px;
+  }
+  .doc-body mark.hop-2 { outline: 2px solid var(--accent-2); outline-offset: 1px; }
+
+  .right-panel { flex: 1 1 54%; min-width: 0; display: flex; gap: 12px; }
+  @media (max-width: 900px) { .right-panel { flex-direction: column; } }
+
+  .filters {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 12px;
+    display: flex; flex-direction: column; gap: 12px; width: 230px; flex-shrink: 0;
+    max-height: 100%; overflow-y: auto;
+  }
+  @media (max-width: 900px) { .filters { width: 100%; max-height: none; flex-direction: row; flex-wrap: wrap; } }
+  @media (max-width: 900px) { .filters .filter-group { min-width: 160px; flex: 1; } }
+  .filter-group { display: flex; flex-direction: column; gap: 5px; }
+  .filter-group .fl { font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); font-weight: 600; }
+  .seg { display: flex; flex-wrap: wrap; gap: 5px; }
+  .seg button {
+    font-family: var(--font-body); font-size: 0.75rem; border: 1px solid var(--border); background: var(--bg);
+    color: var(--ink); border-radius: 999px; padding: 4px 9px; cursor: pointer;
+  }
+  .seg button.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+  select, input[type="search"] {
+    font-family: var(--font-body); font-size: 0.82rem; padding: 6px 8px; border-radius: 8px;
+    border: 1px solid var(--border); background: var(--bg); color: var(--ink); width: 100%;
+  }
+  select:focus, input:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .req-list { display: flex; flex-direction: column; gap: 3px; max-height: 180px; overflow-y: auto; }
+  .req-row { display: flex; align-items: center; justify-content: space-between; gap: 6px; font-size: 0.76rem; cursor: pointer; padding: 3px 4px; border-radius: 6px; }
+  .req-row:hover { background: var(--chip-bg); }
+  .req-row input { accent-color: var(--accent); }
+  .req-row .cnt { font-family: var(--font-mono); color: var(--muted); font-size: 0.68rem; }
+  .reset-btn { font-family: var(--font-body); font-size: 0.75rem; color: var(--accent); background: none; border: none; cursor: pointer; text-align: left; padding: 0; text-decoration: underline; }
+
+  .results { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 8px; min-height: 0; }
+  .results-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .results-head .count { font-size: 0.8rem; color: var(--muted); }
+  .cards-scroll { flex: 1; overflow-y: auto; min-height: 0; display: flex; flex-direction: column; gap: 8px; padding-right: 2px; }
+
+  .card {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 11px 13px;
+    display: flex; flex-direction: column; gap: 6px; cursor: pointer;
+  }
+  .card:hover { border-color: var(--accent); }
+  .card.selected { border-color: var(--accent); background: var(--accent-soft); }
+  .badges { display: flex; flex-wrap: wrap; gap: 5px; }
+  .badge { font-family: var(--font-mono); font-size: 0.65rem; letter-spacing: 0.02em; padding: 2px 6px; border-radius: 5px; background: var(--chip-bg); color: var(--muted); white-space: nowrap; }
+  .badge.corpus-chibench { background: var(--accent-soft); color: var(--accent); }
+  .badge.corpus-ours { background: var(--accent-2-soft); color: var(--accent-2); }
+  .badge.hop-multi { border: 1px solid var(--accent-2); color: var(--accent-2); background: transparent; }
+  .badge.code { background: var(--ink); color: var(--bg); }
+
+  .q { font-size: 0.92rem; line-height: 1.4; }
+  .a-row { display: flex; gap: 8px; align-items: baseline; }
+  .a-label { font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); flex-shrink: 0; }
+  .a { font-family: var(--font-mono); font-size: 0.84rem; background: var(--accent-soft); color: var(--ink); padding: 3px 7px; border-radius: 6px; }
+  .meta-row { display: flex; justify-content: space-between; gap: 8px; font-size: 0.7rem; color: var(--muted); flex-wrap: wrap; }
+
+  .empty { text-align: center; color: var(--muted); padding: 30px 15px; font-size: 0.85rem; }
+  .load-more { display: flex; justify-content: center; padding: 4px 0; }
+  .load-more button { font-family: var(--font-body); font-size: 0.82rem; padding: 7px 16px; border-radius: 999px; border: 1px solid var(--border); background: var(--surface); color: var(--ink); cursor: pointer; }
+  .load-more button:hover { border-color: var(--accent); color: var(--accent); }
+
+  [hidden] { display: none !important; }
+</style>
+
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+</head>
+<body>
+
+<div class="app">
+  <header class="top">
+    <div>
+      <h1>Policy QA Explorer</h1>
+      <div class="subtitle">Click any question to see its exact source passage highlighted on the left</div>
+    </div>
+  </header>
+
+  <div class="stats" id="stats"></div>
+
+  <div class="split">
+    <div class="doc-panel">
+      <div class="doc-head">
+        <select id="doc-select"></select>
+        <span class="doc-hint" id="doc-hint">Select a question to highlight its source</span>
+      </div>
+      <div class="doc-body" id="doc-body"></div>
+    </div>
+
+    <div class="right-panel">
+      <aside class="filters">
+        <div class="filter-group">
+          <div class="fl">Corpus</div>
+          <div class="seg" id="f-corpus"></div>
+        </div>
+        <div class="filter-group">
+          <div class="fl">Hop type</div>
+          <div class="seg" id="f-hop"></div>
+        </div>
+        <div class="filter-group">
+          <div class="fl">Direction</div>
+          <select id="f-direction"></select>
+        </div>
+        <div class="filter-group">
+          <div class="fl">Requirement type</div>
+          <div class="req-list" id="f-requirement"></div>
+        </div>
+        <div class="filter-group">
+          <div class="fl">Search</div>
+          <input type="search" id="f-search" placeholder="e.g. 28289, HSAT…">
+        </div>
+        <button class="reset-btn" id="reset">Reset all filters</button>
+      </aside>
+
+      <section class="results">
+        <div class="results-head">
+          <div class="count" id="result-count"></div>
+        </div>
+        <div class="cards-scroll" id="cards-scroll">
+          <div id="cards"></div>
+          <div class="load-more" id="load-more-wrap" hidden>
+            <button id="load-more">Show 50 more</button>
+          </div>
+          <div class="empty" id="empty-state" hidden>No questions match these filters.</div>
+        </div>
+      </section>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  var state = {
+    corpus: 'all', hop: 'all', direction: 'all',
+    requirementTypes: new Set(), search: '', shown: 50,
+    selectedQuestionId: null, selectedDocId: null,
+  };
+
+  var QUESTIONS = [];
+  var DOCUMENTS = {};
+  var reqCounts = {};
+
+  function escapeHtml(s) {
+    return String(s).replace(/[&<>"']/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+  }
+  function corpusLabel(c) { return c === 'chibench' ? 'Chi-Bench' : 'Our corpus'; }
+
+  function loadState() {
+    try {
+      var saved = JSON.parse(localStorage.getItem('pa-qa-explorer-filters') || '{}');
+      if (saved.corpus) state.corpus = saved.corpus;
+      if (saved.hop) state.hop = saved.hop;
+      if (saved.direction) state.direction = saved.direction;
+      if (Array.isArray(saved.requirementTypes)) state.requirementTypes = new Set(saved.requirementTypes);
+    } catch (e) {}
+  }
+  function saveState() {
+    try {
+      localStorage.setItem('pa-qa-explorer-filters', JSON.stringify({
+        corpus: state.corpus, hop: state.hop, direction: state.direction,
+        requirementTypes: Array.from(state.requirementTypes),
+      }));
+    } catch (e) {}
+  }
+
+  function buildStats() {
+    var total = QUESTIONS.length;
+    var chibench = QUESTIONS.filter(function (d) { return d.corpus === 'chibench'; }).length;
+    var ours = QUESTIONS.filter(function (d) { return d.corpus === 'ours'; }).length;
+    var single = QUESTIONS.filter(function (d) { return d.hop === 'single'; }).length;
+    var multi = QUESTIONS.filter(function (d) { return d.hop === 'multi'; }).length;
+    var withCode = QUESTIONS.filter(function (d) { return d.cpt_code; }).length;
+    var stats = [[total, 'Total'], [chibench, 'Chi-Bench'], [ours, 'Our corpus'], [single, 'Single-hop'], [multi, 'Multi-hop'], [withCode, 'Code-anchored']];
+    document.getElementById('stats').innerHTML = stats.map(function (s) {
+      return '<div class="stat"><div class="n">' + s[0] + '</div><div class="l">' + s[1] + '</div></div>';
+    }).join('');
+  }
+
+  function buildDocSelect() {
+    var el = document.getElementById('doc-select');
+    var ids = Object.keys(DOCUMENTS);
+    el.innerHTML = ids.map(function (id) {
+      var d = DOCUMENTS[id];
+      return '<option value="' + id + '">' + escapeHtml(d.filename) + ' (' + corpusLabel(d.corpus) + ')</option>';
+    }).join('');
+    if (!state.selectedDocId) state.selectedDocId = ids[0];
+    el.value = state.selectedDocId;
+    el.addEventListener('change', function () {
+      state.selectedDocId = el.value;
+      state.selectedQuestionId = null;
+      renderDoc([]);
+    });
+  }
+
+  function renderDoc(highlightRanges) {
+    var doc = DOCUMENTS[state.selectedDocId];
+    if (!doc) { document.getElementById('doc-body').textContent = ''; return; }
+    var text = doc.text;
+    var ranges = (highlightRanges || []).filter(function (r) { return r.start != null && r.end != null; })
+      .sort(function (a, b) { return a.start - b.start; });
+    var html = '';
+    var cursor = 0;
+    ranges.forEach(function (r, i) {
+      if (r.start < cursor) return;
+      html += escapeHtml(text.slice(cursor, r.start));
+      var cls = ranges.length > 1 ? ' class="hop-' + (i + 1) + '"' : '';
+      html += '<mark id="hl-' + i + '"' + cls + '>' + escapeHtml(text.slice(r.start, r.end)) + '</mark>';
+      cursor = r.end;
+    });
+    html += escapeHtml(text.slice(cursor));
+    var body = document.getElementById('doc-body');
+    body.innerHTML = html;
+    if (ranges.length) {
+      var first = document.getElementById('hl-0');
+      if (first) first.scrollIntoView({ block: 'center' });
+      document.getElementById('doc-hint').textContent = ranges.length > 1
+        ? ranges.length + ' source passages for this question, in reading order'
+        : 'Source passage for the selected question';
+    } else {
+      document.getElementById('doc-hint').textContent = 'Select a question to highlight its source';
+      body.scrollTop = 0;
+    }
+  }
+
+  function selectQuestion(q) {
+    state.selectedQuestionId = q.id;
+    if (q.document_id && q.document_id !== state.selectedDocId) {
+      state.selectedDocId = q.document_id;
+      document.getElementById('doc-select').value = q.document_id;
+    }
+    var doc = DOCUMENTS[q.document_id];
+    var ranges = (doc ? (q.chunk_ids || []).map(function (cid) {
+      var c = doc.chunks.find(function (ch) { return ch.chunk_id === cid; });
+      return c ? { start: c.start, end: c.end } : null;
+    }).filter(Boolean) : []);
+    renderDoc(ranges);
+    render();
+  }
+
+  function buildCorpusFilter() {
+    var opts = [['all', 'All'], ['chibench', 'Chi-Bench'], ['ours', 'Our corpus']];
+    var el = document.getElementById('f-corpus');
+    el.innerHTML = opts.map(function (o) { return '<button data-v="' + o[0] + '" class="' + (state.corpus === o[0] ? 'active' : '') + '">' + o[1] + '</button>'; }).join('');
+    el.querySelectorAll('button').forEach(function (btn) {
+      btn.addEventListener('click', function () { state.corpus = btn.getAttribute('data-v'); state.shown = 50; saveState(); render(); });
+    });
+  }
+  function buildHopFilter() {
+    var opts = [['all', 'All'], ['single', 'Single-hop'], ['multi', 'Multi-hop']];
+    var el = document.getElementById('f-hop');
+    el.innerHTML = opts.map(function (o) { return '<button data-v="' + o[0] + '" class="' + (state.hop === o[0] ? 'active' : '') + '">' + o[1] + '</button>'; }).join('');
+    el.querySelectorAll('button').forEach(function (btn) {
+      btn.addEventListener('click', function () { state.hop = btn.getAttribute('data-v'); state.shown = 50; saveState(); render(); });
+    });
+  }
+  function buildDirectionFilter() {
+    var dirs = Array.from(new Set(QUESTIONS.map(function (d) { return d.direction || 'other'; }))).sort();
+    var el = document.getElementById('f-direction');
+    el.innerHTML = ['<option value="all">All directions</option>'].concat(
+      dirs.map(function (d) { return '<option value="' + d + '">' + d.replace(/_/g, ' ') + '</option>'; })
+    ).join('');
+    el.value = state.direction;
+    el.addEventListener('change', function () { state.direction = el.value; state.shown = 50; saveState(); render(); });
+  }
+  function buildRequirementFilter() {
+    reqCounts = {};
+    QUESTIONS.forEach(function (d) { var k = d.requirement_type || 'other'; reqCounts[k] = (reqCounts[k] || 0) + 1; });
+    var keys = Object.keys(reqCounts).sort(function (a, b) { return reqCounts[b] - reqCounts[a]; });
+    var el = document.getElementById('f-requirement');
+    el.innerHTML = keys.map(function (k) {
+      var id = 'req-' + k;
+      var checked = state.requirementTypes.has(k) ? 'checked' : '';
+      return '<label class="req-row" for="' + id + '"><span><input type="checkbox" id="' + id + '" data-v="' + k + '" ' + checked + '> ' + k.replace(/_/g, ' ') + '</span><span class="cnt">' + reqCounts[k] + '</span></label>';
+    }).join('');
+    el.querySelectorAll('input').forEach(function (cb) {
+      cb.addEventListener('change', function () {
+        var v = cb.getAttribute('data-v');
+        if (cb.checked) state.requirementTypes.add(v); else state.requirementTypes.delete(v);
+        state.shown = 50; saveState(); render();
+      });
+    });
+  }
+
+  function filtered() {
+    var q = state.search.trim().toLowerCase();
+    return QUESTIONS.filter(function (d) {
+      if (state.corpus !== 'all' && d.corpus !== state.corpus) return false;
+      if (state.hop !== 'all' && d.hop !== state.hop) return false;
+      if (state.direction !== 'all' && (d.direction || 'other') !== state.direction) return false;
+      if (state.requirementTypes.size > 0 && !state.requirementTypes.has(d.requirement_type || 'other')) return false;
+      if (q) {
+        var hay = (d.question + ' ' + d.answer + ' ' + (d.cpt_code || '')).toLowerCase();
+        if (hay.indexOf(q) === -1) return false;
+      }
+      return true;
+    });
+  }
+
+  function cardHtml(d) {
+    var doc = DOCUMENTS[d.document_id];
+    var badges = '<span class="badge corpus-' + d.corpus + '">' + corpusLabel(d.corpus) + '</span>';
+    badges += '<span class="badge' + (d.hop === 'multi' ? ' hop-multi' : '') + '">' + d.hop + '-hop' + (d.hop === 'multi' ? ' (' + d.chunk_ids.length + ')' : '') + '</span>';
+    badges += '<span class="badge">' + (d.requirement_type || 'other').replace(/_/g, ' ') + '</span>';
+    if (d.direction && d.direction !== 'other') badges += '<span class="badge">' + d.direction.replace(/_/g, ' ') + '</span>';
+    if (d.cpt_code) badges += '<span class="badge code">' + escapeHtml(d.cpt_code) + '</span>';
+    var sel = d.id === state.selectedQuestionId ? ' selected' : '';
+    return '<div class="card' + sel + '" data-id="' + d.id + '">' +
+      '<div class="badges">' + badges + '</div>' +
+      '<div class="q">' + escapeHtml(d.question) + '</div>' +
+      '<div class="a-row"><span class="a-label">Answer</span><span class="a">' + escapeHtml(d.answer) + '</span></div>' +
+      '<div class="meta-row"><span>' + escapeHtml(doc ? doc.filename : '') + '</span><span>#' + d.id + '</span></div>' +
+      '</div>';
+  }
+
+  function render() {
+    var results = filtered();
+    document.getElementById('result-count').textContent = results.length + ' question' + (results.length === 1 ? '' : 's');
+    var toShow = results.slice(0, state.shown);
+    var cardsEl = document.getElementById('cards');
+    cardsEl.innerHTML = toShow.map(cardHtml).join('');
+    cardsEl.querySelectorAll('.card').forEach(function (card) {
+      card.addEventListener('click', function () {
+        var id = parseInt(card.getAttribute('data-id'), 10);
+        var q = QUESTIONS.find(function (x) { return x.id === id; });
+        if (q) selectQuestion(q);
+      });
+    });
+    document.getElementById('empty-state').hidden = results.length !== 0;
+    document.getElementById('load-more-wrap').hidden = results.length <= state.shown;
+  }
+
+  function wireStatic() {
+    document.getElementById('f-search').addEventListener('input', function (e) { state.search = e.target.value; state.shown = 50; render(); });
+    document.getElementById('load-more').addEventListener('click', function () { state.shown += 50; render(); });
+    document.getElementById('reset').addEventListener('click', function () {
+      state.corpus = 'all'; state.hop = 'all'; state.direction = 'all'; state.requirementTypes = new Set(); state.search = ''; state.shown = 50;
+      document.getElementById('f-search').value = '';
+      saveState();
+      buildCorpusFilter(); buildHopFilter(); buildDirectionFilter(); buildRequirementFilter();
+      render();
+    });
+  }
+
+  Promise.all([
+    fetch('qa_data.json').then(function (r) { return r.json(); }),
+    fetch('documents.json').then(function (r) { return r.json(); }),
+  ]).then(function (results) {
+    QUESTIONS = results[0];
+    DOCUMENTS = results[1];
+    loadState();
+    buildStats();
+    buildDocSelect();
+    renderDoc([]);
+    buildCorpusFilter();
+    buildHopFilter();
+    buildDirectionFilter();
+    buildRequirementFilter();
+    wireStatic();
+    render();
+  }).catch(function (err) {
+    document.getElementById('cards').innerHTML = '<div class="empty">Could not load question data.</div>';
+    console.error(err);
+  });
+})();
+</script>
+</body>
+</html>
